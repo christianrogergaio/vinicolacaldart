@@ -3,6 +3,8 @@ import time
 import logging
 import sys
 import os
+import requests
+import json
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -44,8 +46,8 @@ def main():
                 logging.info(f"Attempting to connect to Arduino on {SERIAL_PORT}...")
                 arduino = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
                 time.sleep(2)
-                logging.info(f"✅ Connected to Arduino on {SERIAL_PORT}")
-                print(f"\n✅ Conectado com sucesso na porta {SERIAL_PORT}!\n")
+                logging.info(f"Connected to Arduino on {SERIAL_PORT}")
+                print(f"\nConectado com sucesso na porta {SERIAL_PORT}!\n")
 
             if arduino.in_waiting > 0:
                 line = arduino.readline().decode('utf-8', errors='ignore').strip()
@@ -60,23 +62,42 @@ def main():
                     
                     if temp is not None and umid is not None:
                         # User requested print
-                        print(f"🌡️  Temperatura: {temp:.1f}°C  |  💧 Umidade: {umid:.1f}%")
+                        print(f"Temperatura: {temp:.1f}C  |  Umidade: {umid:.1f}%")
 
                         try:
-                            # Save directly to DB
+                            # 1. Save directly to DB (Local)
                             success = database.salvar_leitura(temp, umid, config.LATITUDE, config.LONGITUDE)
                             if success:
                                 logging.info(f"Saved: {temp}C, {umid}%")
                             else:
                                 logging.error("Failed to save to DB")
+                                
+                            # 2. Sync to Remote Dashboard (Mac) if Configured
+                            if config.API_URL_SYNC:
+                                try:
+                                    payload = {
+                                        "temperatura": temp,
+                                        "umidade": umid,
+                                        "latitude": config.LATITUDE,
+                                        "longitude": config.LONGITUDE,
+                                        "origem": "Windows Agent"
+                                    }
+                                    resp = requests.post(config.API_URL_SYNC, json=payload, timeout=2)
+                                    if resp.status_code == 200:
+                                        print("   📡 Sincronizado com Dashboard remoto!")
+                                    else:
+                                        print(f"   ⚠️ Falha na sincronização: {resp.status_code}")
+                                except Exception as sync_err:
+                                    print(f"   ⚠️ Erro de conexão com Dashboard remoto: {sync_err}")
+                                    
                         except Exception as db_err:
                             logging.error(f"Database Error: {db_err}")
         
         except serial.SerialException as e:
             if "PermissionError" in str(e) or "Acesso negado" in str(e):
-                print(f"\n❌ ERRO: A porta {SERIAL_PORT} está ocupada ou com acesso negado.")
-                print("👉 DICA: Feche o Monitor Serial do Arduino IDE ou outros programas usando a porta.")
-                print("🔄 Tentando novamente em 5 segundos...\n")
+                print(f"\n[X] ERRO: A porta {SERIAL_PORT} está ocupada ou com acesso negado.")
+                print("[?] DICA: Feche o Monitor Serial do Arduino IDE ou outros programas usando a porta.")
+                print("[*] Tentando novamente em 5 segundos...\n")
                 arduino = None
                 time.sleep(5)
             else:

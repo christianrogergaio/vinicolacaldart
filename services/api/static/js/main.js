@@ -71,6 +71,42 @@ document.addEventListener('DOMContentLoaded', function () {
         // Continue execution so dropdowns still load
     }
 
+    // --- Date Logic ---
+    function updateDate() {
+        const dateElement = document.getElementById('header-date');
+        if (dateElement) {
+            const options = { weekday: 'long', day: 'numeric', month: 'long' };
+            const today = new Date();
+            // Capitalize first letter
+            let dateString = today.toLocaleDateString('pt-BR', options);
+            dateString = dateString.charAt(0).toUpperCase() + dateString.slice(1);
+            dateElement.innerText = dateString;
+        }
+    }
+    updateDate();
+
+    // --- Helper: Risk Color ---
+    function updateRiskColor(elementId, riskLevel) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+
+        // Remove old classes
+        el.classList.remove('text-sage', 'text-amber', 'text-coral', 'text-slate-300', 'text-text-primary');
+
+        const upperRisk = (riskLevel || '').toUpperCase();
+        if (upperRisk.includes('BAIXO')) {
+            el.classList.add('text-sage');
+        } else if (upperRisk.includes('MÉDIO') || upperRisk.includes('MEDIO') || upperRisk.includes('MODERADO')) {
+            el.classList.add('text-amber');
+        } else if (upperRisk.includes('ALTO') || upperRisk.includes('CRÍTICO') || upperRisk.includes('CRITICO')) {
+            el.classList.add('text-coral');
+        } else {
+            el.classList.add('text-text-primary'); // Default
+        }
+    }
+
+
+
     // Function to fetch data
     async function fetchData() {
         try {
@@ -125,7 +161,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 else if (last.temperatura > 20 && last.umidade > 70) risk = "MÉDIO";
 
                 const riskEl = document.getElementById('val-risco');
-                if (riskEl) riskEl.innerText = risk;
+                if (riskEl) {
+                    riskEl.innerText = risk;
+                    updateRiskColor('val-risco', risk);
+                }
             }
 
         } catch (error) {
@@ -210,7 +249,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 const elTrend = document.getElementById('val-risco-futuro');
                 const elContext = document.querySelector('#card-previsao p.text-gray-500'); // "Tendência para amanhã" fallback
 
-                if (elTrend) elTrend.innerText = data.tendencia;
+                if (elTrend) {
+                    elTrend.innerText = data.tendencia;
+                    // Apply color based on risk keywords in tendency or separate risk field
+                    let riskLevel = data.risco || "BAIXO"; // Fallback
+
+                    // If tendency string contains risk level, use it for coloring
+                    if (data.tendencia.toUpperCase().includes("ALTO")) riskLevel = "ALTO";
+                    else if (data.tendencia.toUpperCase().includes("MÉDIO") || data.tendencia.toUpperCase().includes("MODERADO")) riskLevel = "MÉDIO";
+
+                    updateRiskColor('val-risco-futuro', riskLevel);
+                }
 
                 // Add details if possible (tooltip or subtitle)
                 if (data.detalhes && elContext) {

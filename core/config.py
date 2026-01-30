@@ -8,7 +8,7 @@ ARQUIVO_HISTORICO_CSV = os.path.join(PASTA_DADOS, "historico_avaliacoes.csv")
 
 # Arduino / Serial
 # Arduino / Serial
-PORTA_SERIAL = 'COM3'
+PORTA_SERIAL = 'COM4'
 BAUD_RATE = 9600
 INTERVALO_LEITURA = 1  # Segundos entre leituras
 
@@ -19,6 +19,10 @@ LONGITUDE = -51.1916
 # Telegram (Configuração)
 TELEGRAM_TOKEN = "8225397256:AAFmShbROE8yYWbykbGY7Z-HS5NqcD21XsA"
 TELEGRAM_CHAT_ID = "5933325252" # Pode pegar via userinfobot
+
+# Sincronização Remota (Dashboard no Mac/Outro PC)
+# Exemplo: "http://192.168.1.50:8000/api/readings"
+API_URL_SYNC = None 
 
 # Constantes de Domínio
 DOENCAS = [

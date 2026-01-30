@@ -136,6 +136,33 @@ def calcular_vds_numerico(temp, umid, doenca, planta, estadio="Frutificação"):
     fator = obter_fator_fenologico(doenca, planta, estadio)
     return round(vds_base * fator, 2)
 
+def calcular_vds_complexo_mildio(temp_media, umid_media, horas_umidade_alta):
+    """
+    Calcula o risco de míldio baseado na persistência da umidade (Sugestão Gemini/User).
+    horas_umidade_alta: contador de horas consecutivas com UR > 85%
+    """
+    vds_base = 0.0
+    
+    # Faixa de temperatura ótima para Plasmopara viticola
+    if 18 <= temp_media <= 25:
+        # Se a umidade persistir por muito tempo, o risco dispara
+        if horas_umidade_alta >= 12:
+            vds_base = 1.0  # Infecção provável
+        elif horas_umidade_alta >= 6:
+            vds_base = 0.6  # Risco moderado
+        elif horas_umidade_alta >= 3:
+            vds_base = 0.3  # Alerta inicial
+    elif 10 <= temp_media < 18:
+        # Em temperaturas baixas, precisa de muito mais tempo de molhamento
+        if horas_umidade_alta >= 15:
+            vds_base = 0.5
+    
+    # Ajuste simples se a umidade média do dia for extrema (safe guard)
+    if umid_media > 95 and temp_media > 20:
+        vds_base = max(vds_base, 0.8)
+            
+    return vds_base
+
 def calcular_nivel_risco_imediato(temperatura, umidade, doenca, planta, estadio="Frutificação", horas_molhamento=6):
     """
     Calcula risco qualitativo considerando fenologia.
