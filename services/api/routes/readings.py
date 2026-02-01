@@ -31,10 +31,13 @@ def sync_to_firestore(reading: Reading):
         
         db = firestore.client()
         
-        doc_id = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        # Data/Hora Brasil
+        agora_br = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+        
+        doc_id = agora_br.strftime('%Y-%m-%d_%H-%M-%S')
         data = reading.dict()
-        data['data'] = datetime.datetime.now().strftime('%Y-%m-%d')
-        data['hora'] = datetime.datetime.now().strftime('%H:%M:%S')
+        data['data'] = agora_br.strftime('%Y-%m-%d')
+        data['hora'] = agora_br.strftime('%H:%M:%S')
         
         db.collection('teste').document(doc_id).set(data)
         print(f"Synced to Firestore: {doc_id}")

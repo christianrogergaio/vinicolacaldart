@@ -65,7 +65,8 @@ def salvar_leitura(temp, umid, lat, lon):
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        agora = datetime.now()
+        # Ajuste Fuso Horario Brasil (UTC-3)
+        agora = datetime.utcnow() - timedelta(hours=3)
         
         cursor.execute('''
         INSERT INTO sensores (data_hora, temperatura, umidade, latitude, longitude, origem)

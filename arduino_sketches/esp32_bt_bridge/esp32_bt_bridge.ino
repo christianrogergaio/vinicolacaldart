@@ -16,9 +16,86 @@ uint8_t address[6] = {0x58, 0x56, 0x00, 0x00, 0xD0, 0x55}; // MAC ENCONTRADO
 const char* serverUrl = "https://vinicolacaldart.onrender.com/api/readings";
 
 BluetoothSerial SerialBT;
+// --- IMPORTANTE: DEFINICAO DE VARIAVEIS GLOBAIS ---
+// Removendo WiFiClient global, vamos usar local dentro da funcao para garantir limpeza de RAM
+// address e serverUrl ja sao globais
+
+void enviarParaNuvem(float t, float h) {
+  if (WiFi.status() == WL_CONNECTED) {
+    
+    // 1. DESLIGA BLUETOOTH PARA LIBERAR RAM
+    Serial.println("--- INICIANDO ENVIO HTTPS ---");
+    Serial.print("RAM Antes: "); Serial.println(ESP.getFreeHeap());
+    Serial.println("Desligando Bluetooth...");
+    SerialBT.end(); 
+    delay(1000); // Tempo para o sistema limpar a memoria
+    Serial.print("RAM Pos-BT-Off: "); Serial.println(ESP.getFreeHeap());
+
+    // 2. CONECTA VIA HTTPS (Agora temos memoria!)
+    {
+        WiFiClientSecure client;
+        client.setInsecure(); // Ignora SSL
+        const char* host = "vinicolacaldart.onrender.com";
+        const int port = 443; // Voltamos para HTTPS
+
+        Serial.print("Conectando seguro em "); Serial.println(host);
+        
+        if (client.connect(host, port)) {
+            Serial.println("CONECTADO! Enviando...");
+            
+            String jsonPayload = "{\"temperatura\": " + String(t) + 
+                                 ", \"umidade\": " + String(h) + 
+                                 ", \"latitude\": -29.0305, \"longitude\": -51.1916, \"origem\": \"ESP32-Bridge\"}";
+
+            client.println("POST /api/readings HTTP/1.1");
+            client.print("Host: "); client.println(host);
+            client.println("Content-Type: application/json");
+            client.print("Content-Length: "); client.println(jsonPayload.length());
+            client.println("Connection: close");
+            client.println(); 
+            client.println(jsonPayload);
+
+            // Aguarda resposta
+            unsigned long timeout = millis();
+            while (client.available() == 0) {
+                if (millis() - timeout > 10000) {
+                    Serial.println("Timeout!");
+                    break;
+                }
+            }
+
+            // Le resposta
+            Serial.println("Resposta do Servidor:");
+            while(client.available()){
+               char c = client.read();
+               Serial.print(c);
+            }
+            Serial.println("\n-----------------------");
+            
+        } else {
+             Serial.println("FALHA: HTTPS nao conectou mesmo sem BT.");
+        }
+        client.stop(); // Fecha conexao SSL
+    }
+    
+    // 3. RELIGA BLUETOOTH
+    Serial.println("Religando Bluetooth...");
+    SerialBT.begin("ESP32_Bridge", true); 
+    Serial.println("Reconectando ao Arduino...");
+    if(SerialBT.connect(address)) {
+        Serial.println("BT Reconectado!");
+    } else {
+        Serial.println("Falha ao reconectar BT (Tentara no Loop)");
+    }
+
+  } else {
+    Serial.println("WiFi desconectado.");
+  }
+}
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("--- INICIANDO ESP32 - FINAL ---");
   
   // 1. Conecta WiFi
   WiFi.begin(ssid, password);
@@ -29,12 +106,14 @@ void setup() {
   }
   Serial.println("\nWiFi Conectado!");
 
+  // Configura SSL Removed
+
   // 2. Inicia Bluetooth em modo MASTER (true)
   SerialBT.begin("ESP32_Bridge", true); 
   SerialBT.setPin("1234", 4);
   Serial.println("Bluetooth iniciado. Tentando conectar ao HC-05 (MAC)...");
 
-  // Tenta conectar usando o ENDEREÇO MAC (Muito mais confiável que por nome)
+  // Tenta conectar usando o ENDEREÇO MAC
   bool connected = SerialBT.connect(address);
   
   if(connected) {
@@ -105,29 +184,4 @@ void processaLinha(String linha) {
   }
 }
 
-void enviarParaNuvem(float t, float h) {
-  if (WiFi.status() == WL_CONNECTED) {
-    WiFiClientSecure client;
-    client.setInsecure(); // Ignora verificação de certificado SSL (necessário para HTTPS sem CA root)
-    HTTPClient http;
-    http.begin(client, serverUrl);
-    http.addHeader("Content-Type", "application/json");
-
-    String jsonPayload = "{\"temperatura\": " + String(t) + 
-                         ", \"umidade\": " + String(h) + 
-                         ", \"latitude\": -29.0305, \"longitude\": -51.1916, \"origem\": \"ESP32-Bridge\"}";
-                         
-    int responseCode = http.POST(jsonPayload);
-    
-    if (responseCode > 0) {
-      Serial.println("Enviado para Nuvem! Code: " + String(responseCode));
-    } else {
-      Serial.println("Erro HTTP: " + String(responseCode));
-    }
-    http.end();
-  } else {
-    Serial.println("WiFi desconectado. Tentando reconectar...");
-    WiFi.disconnect();
-    WiFi.reconnect();
-  }
-}
+// (Funcao substituida acima)
