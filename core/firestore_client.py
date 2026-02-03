@@ -46,29 +46,27 @@ def buscar_historico_cloud(limit=50):
         # doc ID is "YYYY-MM-DD_HH-MM-SS"
         # We can use start_at logic on document ID or strict equality on 'data' field
         
-        # Simple approach: Filter by 'data' field (which we know exists).
-        # We need the last few days.
+        # OPTIMIZED QUERY FOR FREE PLAN
+        # Instead of fetching by Date (which might return 3000+ docs and timeout),
+        # we fetch by Document ID Range.
+        # IDs are "YYYY-MM-DD_HH-MM-SS".
+        # We only need the last few hours for the live dashboard.
+        
         import datetime
-        today = datetime.datetime.utcnow()
-        days_to_check = [
-            (today - datetime.timedelta(days=i)).strftime('%Y-%m-%d')
-            for i in range(3) # Today, Yesterday, Before Yesterday
-        ]
+        now = datetime.datetime.utcnow() - datetime.timedelta(hours=3) # Brasil
+        # Fetch last 3 hours of data (plenty for "Live" view)
+        start_time = now - datetime.timedelta(hours=3)
+        start_id = start_time.strftime('%Y-%m-%d_%H-%M-%S')
         
-        # Firestore 'in' query supports up to 10 values
-        query = readings_ref.where('data', 'in', days_to_check)
-        
-        # Since we use 'in', we might not be able to order by __name__ easily without index.
-        # But reducing from 20000 to ~2000 docs is a good start. 
-        # Actually, let's just get TODAY first. If user wants history, we load more?
-        # Let's try to grab just today and yesterday.
+        # Range query on __name__ (Document ID)
+        # This is extremely fast and requires no index.
+        query = readings_ref.order_by('__name__').start_at([start_id])
         
         docs = query.stream()
         
         historico = []
         for doc in docs:
             data = doc.to_dict()
-            # ... process ...
             
             dt_str = f"{data.get('data')} {data.get('hora')}"
             
@@ -82,9 +80,9 @@ def buscar_historico_cloud(limit=50):
             }
             historico.append(item)
 
-        # Sort in Python (Descending)
+        # Sort desc (Newest first) for frontend
         historico.sort(key=lambda x: x['data_hora'], reverse=True)
-        # Apply limit
+        # Apply limit just in case
         historico = historico[:limit]
         
         # The frontend often expects ascending order for charts
