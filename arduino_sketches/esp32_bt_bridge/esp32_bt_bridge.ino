@@ -4,8 +4,8 @@
 #include <BluetoothSerial.h>
 
 // --- CONFIGURAÇÃO DE REDE (WIFI) ---
-const char* ssid = "VALQUIRIA_2G";      // <--- EDITAR
-const char* password = "sergio-gio"; // <--- EDITAR
+const char* ssid = "GRASPA_CALDART";      // <--- EDITAR
+const char* password = "caldart123"; // <--- EDITAR
 
 // --- CONFIGURAÇÃO DE ALVO (BLUETOOTH DO ARDUINO) ---
 // --- CONFIGURAÇÃO DE ALVO (BLUETOOTH DO ARDUINO) ---
@@ -95,33 +95,37 @@ void enviarParaNuvem(float t, float h) {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("--- INICIANDO ESP32 - FINAL ---");
+  Serial.println("--- INICIANDO ESP32 - BRIDGE ---");
   
-  // 1. Conecta WiFi
-  WiFi.begin(ssid, password);
-  Serial.print("Conectando WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi Conectado!");
-
-  // Configura SSL Removed
-
-  // 2. Inicia Bluetooth em modo MASTER (true)
+  // 1. Inicia Bluetooth PRIMEIRO
+  // Assim garantimos que o HC-05 conecte mesmo sem WiFi (bom para diagnostico visual no LED)
   SerialBT.begin("ESP32_Bridge", true); 
   SerialBT.setPin("1234", 4);
-  Serial.println("Bluetooth iniciado. Tentando conectar ao HC-05 (MAC)...");
-
-  // Tenta conectar usando o ENDEREÇO MAC
-  bool connected = SerialBT.connect(address);
+  Serial.println("Bluetooth iniciado. Tentando conectar ao HC-05 (MAC) em paralelo...");
   
+  // Tenta conectar ao HC-05 (Sem bloquear muito tempo)
+  bool connected = SerialBT.connect(address);
   if(connected) {
-    Serial.println("Conectado ao HC-05 com sucesso!");
+    Serial.println("BT CONECTADO AO ARDUINO!");
   } else {
-    Serial.println("Falha ao conectar no HC-05. Reiniciando em 5s...");
-    delay(5000);
-    ESP.restart();
+    Serial.println("BT Nao conectou de primeira. Tentaremos no loop.");
+  }
+
+  // 2. Conecta WiFi (Com Timeout para não travar tudo se a rede não existir)
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando WiFi");
+  
+  int tentativas = 0;
+  while (WiFi.status() != WL_CONNECTED && tentativas < 20) { // Espera max 10 segundos
+    delay(500);
+    Serial.print(".");
+    tentativas++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi Conectado!");
+  } else {
+    Serial.println("\nERRO: WiFi Nao conectado (Timeout). Rodando em modo SEM INTERNET.");
   }
 }
 

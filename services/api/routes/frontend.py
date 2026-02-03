@@ -29,7 +29,10 @@ async def analise(request: Request):
 @router.get("/api/historico")
 async def get_historico():
     # Reuse logic from database
-    return database.buscar_historico(dias=30) # Simplified
+    # Switch to Cloud Firestore (Persistent)
+    # return database.buscar_historico(dias=30) # OLD: Local only
+    from core import firestore_client
+    return firestore_client.buscar_historico_cloud(limit=100)
 
 @router.get("/api/config")
 async def get_config():
