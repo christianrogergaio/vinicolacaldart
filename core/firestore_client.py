@@ -42,11 +42,11 @@ def buscar_historico_cloud(limit=50):
     try:
         readings_ref = db.collection('teste')
         # Order by document ID (which is YYYY-MM-DD_HH-MM-SS) descending
-        # Or by a specific field if available. Doc ID is reliable defined in readings.py
-        
-        # Firestore IDs are strings, so lexical sort works for this format
-        query = readings_ref.order_by(firestore.FieldPath.document_id(), direction=firestore.Query.DESCENDING).limit(limit)
-        docs = query.stream()
+        # Get all docs (limit is tricky without order, but for now just get latest X if possible, or get all and slice)
+        # Without index, we can't reliably "get last 50".
+        # BUT, if we just get a chunk, we can sort in python.
+        docs = readings_ref.stream() # Get all (careful if collection is huge, but it's likely small for now)
+
         
         historico = []
         for doc in docs:
@@ -67,6 +67,11 @@ def buscar_historico_cloud(limit=50):
             }
             historico.append(item)
             
+        # Sort in Python (Descending)
+        historico.sort(key=lambda x: x['data_hora'], reverse=True)
+        # Apply limit
+        historico = historico[:limit]
+        
         # The frontend often expects ascending order for charts
         historico.reverse()
         return historico
