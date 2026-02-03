@@ -44,8 +44,25 @@ def sync_to_firestore(reading: Reading):
     except Exception as e:
         print(f"Firestore Sync Error: {e}")
 
+# --- Global Rate Limiter ---
+last_save_time = None
+
 @router.post("/readings")
 async def receive_reading(reading: Reading, background_tasks: BackgroundTasks):
+    global last_save_time
+    
+    # Check Rate Limit (15 minutes)
+    now = datetime.datetime.utcnow()
+    if last_save_time:
+        diff = now - last_save_time
+        if diff.total_seconds() < 900: # 900 seconds = 15 minutes
+            # Rate limited: Return success but don't save.
+            # This keeps the ESP32 happy (it thinks it worked) but saves our DB.
+            return {"status": "ignored_rate_limit", "next_save_in": 900 - diff.total_seconds()}
+            
+    # Update last save time
+    last_save_time = now
+
     # 1. Save to Local SQLite
     success = database.salvar_leitura(
         reading.temperatura, 
@@ -56,7 +73,7 @@ async def receive_reading(reading: Reading, background_tasks: BackgroundTasks):
     
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save reading locally")
-
+        
     # 2. Trigger Alerts (Simplified logic)
     # In a real microservice, this might publish to a queue (RabbitMQ/Redis)
     # Here we just check and print for simplicity or use a helper
