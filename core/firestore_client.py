@@ -8,8 +8,21 @@ from . import config
 # Singleton initialization
 if not firebase_admin._apps:
     try:
-        cred = credentials.Certificate(config.CREDENCIAIS_FIREBASE)
-        firebase_admin.initialize_app(cred)
+        # Try Loading from File
+        if os.path.exists(config.CREDENCIAIS_FIREBASE):
+             cred = credentials.Certificate(config.CREDENCIAIS_FIREBASE)
+             firebase_admin.initialize_app(cred)
+             print("Initialized Firebase from File")
+        else:
+             # Try Loading from Secret Loader (Bypass for Render)
+             try:
+                 from . import secrets_loader
+                 cred = credentials.Certificate(secrets_loader.FIREBASE_CONFIG)
+                 firebase_admin.initialize_app(cred)
+                 print("Initialized Firebase from Secrets Loader")
+             except ImportError:
+                 print("Critical: No Firebase credentials found (File or Loader).")
+                 
     except Exception as e:
         print(f"Warning: Could not initialize Firebase: {e}")
 
