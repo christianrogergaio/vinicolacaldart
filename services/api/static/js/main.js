@@ -154,11 +154,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 document.getElementById('last-update').innerText = 'Última atualização: ' + new Date(lastDateStr).toLocaleTimeString();
 
-                // Simple Risk Calculation (Mockup)
-                // In future this should come from API /api/risk
+                // Improved Client-Side Risk Calculation (Míldio Focus)
+                // Temp 18-25 is critical window.
                 let risk = "BAIXO";
-                if (last.temperatura > 25 && last.umidade > 80) risk = "ALTO";
-                else if (last.temperatura > 20 && last.umidade > 70) risk = "MÉDIO";
+                const t = last.temperatura;
+                const h = last.umidade;
+
+                if (t >= 18 && t <= 26) {
+                    if (h >= 85) risk = "ALTO";
+                    else if (h >= 75) risk = "MÉDIO"; // Pays attention to 75-84 range
+                }
+                // Fallback for extreme humidity outside temp range
+                else if (h >= 90) {
+                    risk = "MÉDIO";
+                }
 
                 const riskEl = document.getElementById('val-risco');
                 if (riskEl) {
