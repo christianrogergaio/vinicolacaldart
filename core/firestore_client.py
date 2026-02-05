@@ -54,8 +54,8 @@ def buscar_historico_cloud(limit=50):
         
         import datetime
         now = datetime.datetime.utcnow() - datetime.timedelta(hours=3) # Brasil
-        # Fetch last 3 hours of data (plenty for "Live" view)
-        start_time = now - datetime.timedelta(hours=3)
+        # Fetch last 48 hours of data (plenty for "Live" view + History)
+        start_time = now - datetime.timedelta(hours=48)
         start_id = start_time.strftime('%Y-%m-%d_%H-%M-%S')
         
         # Range query on __name__ (Document ID)
