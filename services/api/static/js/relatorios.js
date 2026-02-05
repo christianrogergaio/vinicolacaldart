@@ -2,49 +2,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log("History Page Loaded (New Design)");
 
     // Define weather/risk helpers
-    const getRiskBadge = (vds) => {
-        // vds is numeric 0-X. 
-        // 0-0.5 Low, 0.5-1.0 Medium, > 1.0 High
-        let label = 'BAIXO';
-        let classes = 'bg-green-50 text-green-700 border-green-200';
-
-        if (vds > 1.0) {
-            label = 'ALTO';
-            classes = 'bg-red-50 text-red-700 border-red-200';
-        } else if (vds > 0.5) {
-            label = 'MÉDIO';
-            classes = 'bg-amber-50 text-amber-700 border-amber-200';
+    // CSV Export
+    window.exportTableToCSV = function () {
+        const rows = document.querySelectorAll("table tr");
+        let csv = [];
+        for (const row of rows) {
+            const cols = row.querySelectorAll("td, th");
+            const rowData = [];
+            for (const col of cols) rowData.push(col.innerText.replace(/(\r\n|\n|\r)/gm, " ").trim());
+            csv.push(rowData.join(","));
         }
-
-        return `<span class="px-2 py-1 rounded text-[10px] font-bold border ${classes}">${label}</span>`;
+        const csvFile = new Blob([csv.join("\n")], { type: "text/csv" });
+        const downloadLink = document.createElement("a");
+        downloadLink.download = `relatorio_caldart_${new Date().toISOString().slice(0, 10)}.csv`;
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.style.display = "none";
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
     };
 
-    const formatDate = (dateStr) => {
-        // Handle "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DDTHH:MM:SS"
-        if (dateStr.indexOf('T') === -1) dateStr = dateStr.replace(' ', 'T');
-        try {
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return dateStr;
-            return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
-        } catch (e) { return dateStr; }
-    };
-
-    // Update Date Header
-    const dateEl = document.getElementById('header-date');
-    if (dateEl) {
-        const now = new Date();
-        dateEl.innerText = now.toLocaleDateString() + ' - Hoje';
+    // Bind Export Button
+    const btnExport = document.querySelector('button[onclick="window.print()"]');
+    if (btnExport) {
+        // Change onclick to export CSV (Print is still useful via Ctrl+P, but button says Export CSV now)
+        btnExport.onclick = window.exportTableToCSV;
     }
-
-    const tbody = document.getElementById('history-table-body');
-    const footerCount = document.getElementById('footer-count');
 
     async function loadHistory() {
         try {
-            // Using /api/relatorios/analise to get the VDS calculation included
-            const res = await fetch('/api/relatorios/analise?dias=30');
+            // Using new Daily Report API
+            const res = await fetch('/api/relatorios/diario?dias=30');
             const json = await res.json();
-            const data = json.vds || [];
+            const data = json.relatorio || [];
 
             if (data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="px-5 py-8 text-center text-text-secondary">Nenhum dado encontrado.</td></tr>';
@@ -52,65 +41,58 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             tbody.innerHTML = '';
-            // Reverse to show newest first? API usually returns chronological.
-            // Let's reverse for "Latest on top"
-            const reversedData = [...data].reverse();
 
-            reversedData.forEach(row => {
+            data.forEach(row => {
                 const tr = document.createElement('tr');
                 tr.className = "group hover:bg-slate-50/80 transition-colors border-b border-gray-50 last:border-0";
 
-                // MOCK INTERVENTION for Demo purposes if random criteria met (or just empty)
-                const hasIntervention = false; // row.vds > 1.5 ? true : false;
+                // Risk Badge Logic
+                let badgeClass = "bg-green-50 text-green-700 border-green-200";
+                let badgeLabel = row.semaforo;
+
+                if (row.semaforo === "VERMELHO") badgeClass = "bg-red-50 text-red-700 border-red-200";
+                else if (row.semaforo === "AMARELO") badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
 
                 tr.innerHTML = `
-                    <td class="px-5 py-4 font-mono text-text-secondary text-xs">${formatDate(row.data_hora)}</td>
+                    <td class="px-5 py-4 font-mono text-text-secondary text-sm font-bold">${formatDate(row.data)}</td>
                     <td class="px-5 py-4">
-                        <div class="flex items-center gap-4">
-                            <div class="flex items-center gap-1.5 font-medium text-text-primary">
-                                <span class="material-symbols-outlined text-coral-muted text-[16px]">device_thermostat</span>
-                                ${row.temperatura.toFixed(1)}°C
+                        <div class="flex items-center gap-3 text-sm">
+                            <span class="text-blue-500 font-semibold">${row.t_min}°C</span>
+                            <span class="text-gray-300">|</span>
+                            <span class="text-red-500 font-semibold">${row.t_max}°C</span>
+                        </div>
+                    </td>
+                    <td class="px-5 py-4 text-center">
+                        <span class="inline-flex items-center px-2 py-1 rounded bg-blue-50 text-blue-700 text-xs font-bold gap-1">
+                            <span class="material-symbols-outlined text-[14px]">water_drop</span>
+                            ${row.molhamento_h}h
+                        </span>
+                    </td>
+                    <td class="px-5 py-4">
+                        <div class="w-full max-w-[100px]">
+                            <div class="flex justify-between text-[10px] text-text-secondary mb-1">
+                                <span>SEV</span>
+                                <strong>${row.sev.toFixed(2)}</strong>
                             </div>
-                            <div class="w-px h-3 bg-border-light"></div>
-                            <div class="flex items-center gap-1.5 font-medium text-text-primary">
-                                <span class="material-symbols-outlined text-slate-blue text-[16px]">water_drop</span>
-                                ${row.umidade.toFixed(1)}%
+                            <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                <div class="bg-slate-400 h-1.5 rounded-full" style="width: ${Math.min((row.sev / 2.0) * 100, 100)}%"></div>
                             </div>
                         </div>
                     </td>
                     <td class="px-5 py-4">
-                        <div class="flex items-center gap-2 text-text-secondary">
-                             <!-- Mock Web Data for History (since we don't store historical API data yet) -->
-                             <span class="material-symbols-outlined text-[18px] text-amber-muted">partly_cloudy_day</span>
-                             <span>--</span>
-                        </div>
-                    </td>
-                    <td class="px-5 py-4">
-                        <div class="flex items-center gap-2">
-                           ${getRiskBadge(row.vds)}
-                           <span class="text-xs text-text-secondary">(${row.vds.toFixed(2)})</span>
-                        </div>
-                    </td>
-                    <td class="px-5 py-4">
-                        ${hasIntervention ?
-                        `<div class="flex items-center gap-2 text-text-primary font-medium">
-                                <span class="material-symbols-outlined text-slate-400 text-[16px]">agriculture</span>
-                                Tratamento
-                            </div>`
-                        :
-                        `<span class="text-slate-400 italic text-xs">Nenhuma ação</span>`
-                    }
+                         <span class="px-2 py-1 rounded text-[10px] font-bold border ${badgeClass}">${badgeLabel}</span>
+                         <div class="text-[10px] text-text-secondary mt-1 truncate max-w-[150px]" title="${row.risco_msg}">${row.risco_msg}</div>
                     </td>
                     <td class="px-5 py-4 text-right">
                         <button class="text-sage hover:text-green-700 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-wide">
-                            Detalhes
+                            Ver Logs
                         </button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
 
-            if (footerCount) footerCount.innerText = `Mostrando ${data.length} registros`;
+            if (footerCount) footerCount.innerText = `Mostrando ${data.length} dias`;
 
         } catch (e) {
             console.error("Error loading history:", e);
@@ -118,7 +100,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Formatting helper (Just Date)
+    const formatDate = (dateStr) => {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
+        return dateStr;
+    };
+    // Initial Load
     loadHistory();
+
     // Refresh every 30s
     setInterval(loadHistory, 30000);
 });

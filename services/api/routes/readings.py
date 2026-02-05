@@ -83,3 +83,23 @@ async def receive_reading(reading: Reading, background_tasks: BackgroundTasks):
     background_tasks.add_task(sync_to_firestore, reading)
 
     return {"status": "received"}
+
+# --- User Feedback Endpoint ---
+class UserReport(BaseModel):
+    sinal: str
+    severidade: str = "baixa"
+    observacoes: str = ""
+
+@router.post("/report")
+async def receive_report(report: UserReport):
+    """Receives visual report from user (e.g., Oil spots)."""
+    success = database.registrar_sinal_visual(
+        report.sinal,
+        report.severidade,
+        report.observacoes
+    )
+    
+    if success:
+        return {"status": "saved", "message": "Obrigado! Sua observação ajuda a calibrar o modelo."}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to save report")

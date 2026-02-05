@@ -2,73 +2,83 @@ document.addEventListener('DOMContentLoaded', function () {
     console.log("Dashboard Loaded");
 
     // Initialize Chart
-    let mainChart = null;
+    // Initialize Charts
+    let tempChart = null;
+    let umidChart = null;
+
     try {
         if (typeof Chart === 'undefined') throw new Error("Chart.js not loaded");
 
-        const ctx = document.getElementById('mainChart').getContext('2d');
-        mainChart = new Chart(ctx, {
+        // --- Temp Chart ---
+        const ctxTemp = document.getElementById('tempChart').getContext('2d');
+        tempChart = new Chart(ctxTemp, {
             type: 'line',
             data: {
                 labels: [],
-                datasets: [
-                    {
-                        label: 'Temperatura (°C)',
-                        data: [],
-                        borderColor: '#ED8936',
-                        backgroundColor: 'rgba(237, 137, 54, 0.1)',
-                        yAxisID: 'y',
-                        tension: 0.4,
-                        fill: true
-                    },
-                    {
-                        label: 'Umidade (%)',
-                        data: [],
-                        borderColor: '#276749',
-                        backgroundColor: 'rgba(39, 103, 73, 0.1)',
-                        yAxisID: 'y1',
-                        tension: 0.4,
-                        fill: true
-                    }
-                ]
+                datasets: [{
+                    label: 'Temperatura (°C)',
+                    data: [],
+                    borderColor: '#ED8936', // Amber/Orange
+                    backgroundColor: 'rgba(237, 137, 54, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 2,
+                }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
+                plugins: {
+                    legend: { display: false },
+                    title: { display: true, text: 'Temperatura (°C)' }
                 },
                 scales: {
-                    y: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        title: { display: true, text: 'Temperatura' }
-                    },
-                    y1: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        grid: { drawOnChartArea: false },
-                        title: { display: true, text: 'Umidade' }
-                    },
                     x: {
                         type: 'time',
-                        time: {
-                            unit: 'minute',
-                            displayFormats: {
-                                minute: 'HH:mm'
-                            }
-                        },
-                        title: { display: true, text: 'Horário' }
-                    }
+                        time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
+                        display: false // Hide X axis labels on top chart to reduce clutter
+                    },
+                    y: { type: 'linear', display: true, suggestedMin: 10, suggestedMax: 35 }
                 }
             }
         });
+
+        // --- Humidity Chart ---
+        const ctxUmid = document.getElementById('umidChart').getContext('2d');
+        umidChart = new Chart(ctxUmid, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Umidade (%)',
+                    data: [],
+                    borderColor: '#3182CE', // Blue
+                    backgroundColor: 'rgba(49, 130, 206, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 2,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    title: { display: true, text: 'Umidade (%)' }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
+                        title: { display: true, text: 'Horário' }
+                    },
+                    y: { type: 'linear', display: true, min: 0, max: 100 }
+                }
+            }
+        });
+
     } catch (e) {
         console.error("Chart Init Error:", e);
-        // Continue execution so dropdowns still load
     }
 
     // --- Date Logic ---
@@ -135,11 +145,16 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             // Update Chart
-            if (mainChart) {
-                mainChart.data.labels = labels;
-                mainChart.data.datasets[0].data = temps;
-                mainChart.data.datasets[1].data = umids;
-                mainChart.update();
+            // Update Charts
+            if (tempChart) {
+                tempChart.data.labels = labels;
+                tempChart.data.datasets[0].data = temps;
+                tempChart.update();
+            }
+            if (umidChart) {
+                umidChart.data.labels = labels;
+                umidChart.data.datasets[0].data = umids;
+                umidChart.update();
             }
 
             // Update Current Values (Last Reading)
@@ -248,36 +263,116 @@ document.addEventListener('DOMContentLoaded', function () {
     setInterval(fetchData, 5000); // Poll every 5 seconds
 
     // --- Weather Prediction ---
+    // --- Weather Prediction ---
     async function fetchPrediction() {
         try {
             const resp = await fetch('/api/previsao');
             const data = await resp.json();
 
-            if (data.tendencia) {
-                // Update Prediction Card
-                const elTrend = document.getElementById('val-risco-futuro');
-                const elContext = document.querySelector('#card-previsao p.text-gray-500'); // "Tendência para amanhã" fallback
+            if (data.semaforo) {
+                // UI Elements
+                const elTitle = document.getElementById('risk-title');
+                const elMsg = document.getElementById('risk-msg');
+                const elBadge = document.getElementById('risk-badge');
+                const elGlow = document.getElementById('risk-glow');
+                const elIcon = document.getElementById('risk-icon');
 
-                if (elTrend) {
-                    elTrend.innerText = data.tendencia;
-                    // Apply color based on risk keywords in tendency or separate risk field
-                    let riskLevel = data.risco || "BAIXO"; // Fallback
+                const elSevVal = document.getElementById('sev-val');
+                const elSevBar = document.getElementById('sev-bar');
 
-                    // If tendency string contains risk level, use it for coloring
-                    if (data.tendencia.toUpperCase().includes("ALTO")) riskLevel = "ALTO";
-                    else if (data.tendencia.toUpperCase().includes("MÉDIO") || data.tendencia.toUpperCase().includes("MODERADO")) riskLevel = "MÉDIO";
+                const elIncVal = document.getElementById('inc-val');
+                const elIncBar = document.getElementById('inc-bar');
 
-                    updateRiskColor('val-risco-futuro', riskLevel);
+                // 1. Semantic Traffic Light
+                if (data.semaforo === "VERDE") {
+                    updateRiskUI("Sem Risco", "safe_check", "bg-sage", "text-sage", "bg-sage-light");
+                    elMsg.innerText = data.mensagem || "Prognóstico Negativo: Economize aplicação.";
+                } else if (data.semaforo === "AMARELO") {
+                    updateRiskUI("Alerta", "warning", "bg-amber", "text-amber", "bg-amber/20");
+                    elMsg.innerText = data.mensagem || "Alerta: Esporos ativos. Monitore chuva.";
+                } else {
+                    updateRiskUI("INFECÇÃO", "gpp_bad", "bg-coral", "text-coral", "bg-coral/20");
+                    elMsg.innerText = data.mensagem || "Risco Alto: Infecção confirmada.";
                 }
 
-                // Add details if possible (tooltip or subtitle)
-                if (data.detalhes && elContext) {
-                    elContext.innerText = `${data.detalhes}`;
-                    elContext.title = "Previsão para amanhã (Open-Meteo)";
+                function updateRiskUI(title, icon, bgColor, textColor, glowColor) {
+                    elTitle.innerText = title;
+                    elTitle.className = `text-2xl font-black text-center mb-1 ${textColor} transition-colors`;
+
+                    elBadge.innerText = data.semaforo;
+                    elBadge.className = `text-[10px] font-bold text-white ${bgColor} px-2 py-1 rounded-md transition-colors`;
+
+                    elIcon.innerText = icon;
+                    if (elGlow) elGlow.className = `absolute top-0 right-0 w-32 h-32 rounded-full blur-[40px] pointer-events-none transition-colors duration-500 ${glowColor}`;
                 }
+
+                // 2. Severity Bar (0 to 10 scale)
+                const sev = data.sev || 0;
+                elSevVal.innerText = sev.toFixed(2);
+                let sevPct = Math.min((sev / 2.0) * 100, 100); // Scale: 2.0 SEV = 100% (High Severity)
+                if (elSevBar) elSevBar.style.width = `${sevPct}%`;
+
+                // 3. Incubation Bar (0 to 100%)
+                const inc = data.incubacao_percent || 0;
+                elIncVal.innerText = `${inc.toFixed(1)}%`;
+                if (elIncBar) elIncBar.style.width = `${inc}%`;
             }
+
+            // Legacy/Prediction Card Update (if exists)
+            const elTrend = document.getElementById('val-risco-futuro');
+            if (elTrend && data.gdd_previsto) {
+                elTrend.innerText = `${data.gdd_previsto.toFixed(1)} GDD`;
+                const ctx = document.querySelector('#card-previsao p.text-gray-500');
+                if (ctx) ctx.innerText = data.detalhes_clima || "";
+            }
+
         } catch (e) {
             console.error("Prediction Fetch Error:", e);
         }
     }
+    // --- Relatório de Sinais Visuais ---
+    function openReportModal() {
+        document.getElementById('reportModal').classList.remove('hidden');
+        document.getElementById('reportModal').style.display = 'flex';
+    }
+
+    function closeReportModal() {
+        document.getElementById('reportModal').classList.add('hidden');
+        document.getElementById('reportModal').style.display = 'none';
+    }
+
+    async function submitReport(sinal) {
+        const obs = document.getElementById('reportObs').value;
+
+        try {
+            const response = await fetch('/api/report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sinal: sinal,
+                    severidade: sinal === 'Sem Sinais' ? 'nenhuma' : 'media',
+                    observacoes: obs
+                })
+            });
+
+            if (response.ok) {
+                alert("Obrigado! Sua observação foi registrada.");
+                closeReportModal();
+            } else {
+                alert("Erro ao salvar observação.");
+            }
+        } catch (error) {
+            console.error("Erro no envio:", error);
+            alert("Erro de conexão.");
+        }
+    }
+
+    // Ensure modal is hidden on load
+    document.addEventListener('DOMContentLoaded', () => {
+        const modal = document.getElementById('reportModal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+    });
 });

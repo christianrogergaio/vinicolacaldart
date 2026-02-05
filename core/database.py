@@ -139,5 +139,27 @@ def buscar_intervencoes(dias=30):
 
 
 
+def registrar_sinal_visual(sinal, severidade="baixa", obs=""):
+    """Registra um sinal visual relatado pelo usuário (ex: mancha de óleo)."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        agora = datetime.now()
+        
+        # Reutilizando tabela 'intervencoes' ou 'avaliacoes' com tipo especifico
+        # Vamos usar 'avaliacoes' pois é um feedback sobre o risco
+        
+        cursor.execute('''
+        INSERT INTO avaliacoes (data_hora, doenca, risco_nivel, comentario)
+        VALUES (?, ?, ?, ?)
+        ''', (agora, "Míldio", severidade, f"Sinal Visual Detectado: {sinal}. {obs}"))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Erro ao registrar sinal visual: {e}")
+        return False
+
 # Inicializa ao importar (garante que tabela existe)
 init_db()
