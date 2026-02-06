@@ -55,10 +55,10 @@ async def receive_reading(reading: Reading, background_tasks: BackgroundTasks):
     now = datetime.datetime.utcnow()
     if last_save_time:
         diff = now - last_save_time
-        if diff.total_seconds() < 900: # 900 seconds = 15 minutes
+        if diff.total_seconds() < 10: # TEMPORARY: 10 seconds for testing (was 900)
             # Rate limited: Return success but don't save.
             # This keeps the ESP32 happy (it thinks it worked) but saves our DB.
-            return {"status": "ignored_rate_limit", "next_save_in": 900 - diff.total_seconds()}
+            return {"status": "ignored_rate_limit", "next_save_in": 10 - diff.total_seconds()}
             
     # Update last save time
     last_save_time = now
